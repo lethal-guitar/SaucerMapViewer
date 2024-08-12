@@ -1,0 +1,3 @@
+[submodule "map_viewer/RigelLib"]
+	path = map_viewer/RigelLib
+	url = https://github.com/lethal-guitar/RigelLib.git
