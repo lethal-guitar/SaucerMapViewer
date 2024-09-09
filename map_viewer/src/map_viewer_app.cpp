@@ -206,14 +206,15 @@ void MapViewerApp::updateAndRender(
   ImGui::End();
 
 
+  // Clear toolbar portion of the window
+  glViewport(
+    0, windowSize.height - toolbarHeight, windowSize.width, toolbarHeight);
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+
   if (mpMapRenderer)
   {
-    glViewport(
-      0, windowSize.height - toolbarHeight, windowSize.width, toolbarHeight);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-
     glViewport(0, 0, windowSize.width, windowSize.height - toolbarHeight);
     mpMapRenderer->updateAndRender(
       mMapFileBrowser.IsOpened() ? 0.0 : dt, windowSize);
