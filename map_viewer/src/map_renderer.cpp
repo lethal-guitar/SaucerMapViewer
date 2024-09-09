@@ -131,6 +131,15 @@ struct MapVertex
 
 Vertex makeVertex(int x, int y, int verticalOffset, const TexCoords& uv)
 {
+  // The game uses grid coordinates alongside vertical offsets. We map
+  // grid X/Y coordinates to the X and Z axes in the OpenGL coordinate system,
+  // and the vertical dimension to OpenGL's Y axis.
+  // We also define a grid cell to be 1.0 in size, and the center of the map to
+  // be at the origin (0, 0, 0). In the game's coordinate system, a perfect
+  // cube is 256 units high, so we want to scale vertical values accordingly
+  // so that a perfect cube is 1.0 units high in OpenGL coordinates.
+  // We also need to invert the vertical axis, since OpenGL has positive Y
+  // pointing up.
   const auto vX = float(x) - 32.0f;
   const auto vY = float(verticalOffset) / -256.0f;
   const auto vZ = float(y) - 32.0f;
@@ -392,6 +401,8 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
 
           const auto uvs = getTexCoords(texture);
 
+          // Masked faces need to be kept separate, as we have to render them
+          // with alpha-testing enabled.
           auto pBuffer = map.mTextureDefs[texture].isMasked
             ? &blocksBufferMasked
             : &blocksBuffer;
