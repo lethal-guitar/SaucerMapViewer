@@ -291,15 +291,15 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
     for (auto x = 0; x < MAP_SIZE; ++x)
     {
       const auto& tile = map.terrainAt(x, y);
-      const auto blockDefIndex = tile.blockDefIndex;
+      const auto& blockDef = map.mBlockDefs[tile.blockDefIndex];
+      const auto texture = blockDef.texturesInside.bottom;
 
-      if (blockDefIndex == 0)
+      if (texture == 0)
       {
         continue;
       }
 
-      const auto& blockDef = map.mBlockDefs[blockDefIndex];
-      auto uvs = getTexCoords(blockDef.texturesInside.bottom);
+      auto uvs = getTexCoords(texture);
 
       const auto vertOffset0 = tile.verticalOffset;
       const auto vertOffset1 =
@@ -334,7 +334,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
         const auto& blockDef = map.mBlockDefs[tile.blockDefIndex];
         const auto texture = blockDef.texturesInside.bottom;
 
-        if (tile.blockDefIndex == 0 || texture == 0)
+        if (texture == 0)
         {
           return;
         }
