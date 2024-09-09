@@ -200,6 +200,7 @@ void MapViewerApp::updateAndRender(
   }
   else
   {
+    ImGui::SameLine();
     ImGui::Text("No map loaded!");
   }
 
