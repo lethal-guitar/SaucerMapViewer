@@ -22,6 +22,23 @@
 namespace saucer
 {
 
+std::string readString(std::istream& stream, int maxLength)
+{
+  std::string str;
+  str.assign(size_t(maxLength), '\0');
+
+  stream.read(str.data(), str.size());
+
+  if (const auto zeroTerminatorIndex = str.find('\0');
+      zeroTerminatorIndex != std::string::npos)
+  {
+    str.resize(zeroTerminatorIndex + 1);
+  }
+
+  return str;
+}
+
+
 TextureDef readTextureDef(std::istream& f)
 {
   using namespace rigel::base;

@@ -80,7 +80,7 @@ std::optional<MapData>
         break;
       }
 
-      const auto name = readString<14>(f);
+      const auto name = readString(f, 14);
 
       if (i < texturePageRemapTable.size())
       {

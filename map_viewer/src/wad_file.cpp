@@ -192,7 +192,7 @@ std::optional<WadData> loadWadFile(const std::filesystem::path& path)
     for (auto i = 0u; i < numExportedTextures; ++i)
     {
       const auto index = read<uint32_t>(f);
-      const auto name = readString<16>(f);
+      const auto name = readString(f, 16);
 
       wad.mTexturePages[name] = index;
     }

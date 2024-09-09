@@ -40,22 +40,7 @@ struct TextureDef
 };
 
 
-template <size_t MaxLen>
-std::string readString(std::istream& stream)
-{
-  std::array<char, MaxLen> string;
-  string.fill(0);
-
-  stream.read(string.data(), string.size());
-
-  if (string.back() != 0)
-  {
-    string.back() = 0;
-  }
-
-  return std::string(string.data());
-}
-
+std::string readString(std::istream& stream, int maxLength);
 
 TextureDef readTextureDef(std::istream& f);
 
