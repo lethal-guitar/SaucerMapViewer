@@ -1,6 +1,6 @@
 # Attack of the Saucerman file format specs (Windows version)
 
-These specs are reverse engineered, and currently still work in progress (i.e., incomplete and possibly inaccurate in places.)
+These specs are reverse engineered, and currently still work in progress (i.e., incomplete and possibly inaccurate/incorrect in places.)
 
 All files use little-endian encoding.
 
@@ -171,9 +171,9 @@ If bit 2 in flags is set, a blend mode value greater or equal to `0x80` results 
 
 Entries in the model table provide two `u32` pointers into the packed data block, one at the start and one at offset 12. The remaining 28 bytes are unknown at the moment and need further investigation.
 
-The 1st pointer locates a fixed-size block of 80 bytes, which contains up to 7 additional packed data pointers (first subheader). The 2nd pointer locates a fixed-size block of 60 bytes (second subheader).
+The 1st pointer locates a fixed-size block of 80 bytes (model data record), which contains up to 7 additional packed data pointers. The 2nd pointer locates a fixed-size block of 60 bytes (model parameters record), which contains a transformation matrix and some currently unknown parameters.
 
-#### First subheader
+#### Model data record
 
 All fields are `u32`, unless noted otherwise.
 
@@ -181,23 +181,25 @@ All fields are `u32`, unless noted otherwise.
 --- |  ---
 |  0 | Unknown, always 0s |
 | 40 | Number of vertices |
-| 44 | Vertex list pointer |
+| 44 | Vertex list pointer (into packed data) |
 | 48 | Number of faces (triangles or quads) |
-| 52 | Face list pointer |
+| 52 | Face list pointer (into packed data) |
 | 56 | Unknown count 1 |
-| 60 | Unknown data pointer 1 |
+| 60 | Unknown data pointer 1 (into packed data) |
 | 64 | Unknown count 2 |
-| 68 | Unknown data pointer 2 |
+| 68 | Unknown data pointer 2 (into packed data) |
 | 72 | Unknown data pointer 3 (optional, often 0) |
-| 76 | Unknown, possibly 2 i16 offsets |
+| 76 | Unknown |
 
-#### Second subheader
+#### Model parameters record
 
-| Offset | Type | Description
---- |  --- | ---
-|  0 | 20 bytes | Unknown |
-| 20 | i16 | Base vertical offset |
-| 22 | 38 bytes ? | Unknown |
+The first 24 bytes describe a transformation matrix, the remaining 36 bytes are unknown.
+
+The matrix is essentially a standard 4x4 matrix, but with the 4th row omitted.
+Each value is a signed 16-bit integer.
+Values are given in column-major order: The first three `i16` specify the first column, the next three specify the 2nd column, etc.
+
+All model vertices should be transformed by this matrix before placing the model into a level.
 
 
 #### Vertices
@@ -219,8 +221,6 @@ Faces are defined using 32-byte records of the following format:
 | 10 | u16 | vertex index 3 (bottom-left) - only used for quads |
 | 12 | u16 | face type: `0x8000` = quad, `0x1000` = triangle |
 | 14 | ?? | Unknown |
-
-Using only the vertex and face lists seems to be enough information to recreate the models as they appear in the game, so it's not clear yet what all the additional data is needed for.
 
 ### Sound effects
 
@@ -411,12 +411,21 @@ For the top and bottom faces, the texture itself should be rotated. :warning: In
 | Offset | Type | Description |
 --- | --- | ---
 | 0 | u8 | X offset |
-| 1 | u8 | Y offset |
-| 2 | i16 | Vertical offset |
-| 4 | 3 bytes | Unknown |
-| 7 | u8 | Rotation (counter-clockwise) |
-| 8 | 3 bytes | Unknown |
-| 10 | u32 | Model index |
+| 1 | u8 | Y offset (Z coordinate in model space) |
+| 2 | i16 | Vertical offset (Y coordinate in model space) |
+| 4 | u16 | Rotation (X axis) |
+| 6 | u16 | Rotation (Y axis) |
+| 8 | u16 | Rotation (Z axis) |
+| 10 | u32 | Model index (refers to model name table defined earlier in the map file) |
 | 14 | u16 | Scale |
 
-TODO
+To convert rotation values to degrees, divide by 256<sup>2</sup> then multiply by 360.
+To normalize the scale value into the (0..1) range, divide by 256.
+
+To correctly position the model in the world, the following transformations are necessary (in this order):
+
+* Apply model's transformation matrix (see [Model parameters record](#model-parameters-record))
+* Apply scale
+* Apply rotation, in order X, Z, Y
+* Translate by offsets specified in the model instance
+* Translate to grid cell location
