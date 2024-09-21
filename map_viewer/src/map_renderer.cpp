@@ -154,7 +154,36 @@ Vertex makeVertex(const MapVertex& v, const TexCoords& uv)
 }
 
 
+std::vector<float> buildAtlasUvOffsetTable(rigel::base::ArrayView<int> pages)
+{
+  std::vector<float> table;
+  table.assign(pages.back() + 1, 0.0f);
+
+  {
+    auto i = 0;
+    for (const auto page : pages)
+    {
+      table[page] = float(i) / float(pages.size());
+      ++i;
+    }
+  }
+
+  return table;
+}
+
+
 } // namespace
+
+
+TextureAtlas::TextureAtlas(
+  const rigel::base::Image& image,
+  rigel::base::ArrayView<int> pages)
+  : mTexture(opengl::createTexture(image))
+  , mWidth(float(image.width()))
+  , mUvOffsets(buildAtlasUvOffsetTable(pages))
+{
+}
+
 
 
 MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
@@ -176,19 +205,7 @@ MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
 
   const auto pagesUsed = determineTexturePagesUsed(map);
   const auto textureAtlasImage = wad.buildTextureAtlas(pagesUsed);
-
-  mTextureAtlas = opengl::createTexture(textureAtlasImage);
-  mTextureAtlasWidth = float(textureAtlasImage.width());
-  mTextureAtlasUvOffsets.assign(pagesUsed.back() + 1, 0.0f);
-
-  {
-    auto i = 0;
-    for (const auto page : pagesUsed)
-    {
-      mTextureAtlasUvOffsets[page] = float(i) / float(pagesUsed.size());
-      ++i;
-    }
-  }
+  mWorldTextures = TextureAtlas(textureAtlasImage, pagesUsed);
 
   buildMeshes(map, wad);
 }
@@ -268,7 +285,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
     // The game's texture coordinates are relative to their respective page,
     // but we combine all pages into a single texture atlas. Adjust U
     // coordinates accordingly.
-    const auto uOffset = mTextureAtlasUvOffsets[texDef.bitmapIndex];
+    const auto uOffset = mWorldTextures.mUvOffsets[texDef.bitmapIndex];
 
     std::transform(
       texDef.uvs.begin(),
@@ -276,7 +293,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
       texCoords.begin(),
       [&](const UvPair& uv) {
         return TexCoords{
-          (float(uv.u) + 0.5f) / mTextureAtlasWidth + uOffset,
+          (float(uv.u) + 0.5f) / mWorldTextures.mWidth + uOffset,
           (float(uv.v) + 0.5f) / float(TEXTURE_PAGE_SIZE)};
       });
 

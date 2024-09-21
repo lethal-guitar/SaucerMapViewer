@@ -39,6 +39,19 @@ RIGEL_RESTORE_WARNINGS
 namespace saucer
 {
 
+struct TextureAtlas
+{
+  TextureAtlas() = default;
+  TextureAtlas(
+    const rigel::base::Image& image,
+    rigel::base::ArrayView<int> pages);
+
+  rigel::opengl::Handle<rigel::opengl::tag::Texture> mTexture;
+  float mWidth = 0.0f;
+  std::vector<float> mUvOffsets;
+};
+
+
 class MapRenderer
 {
 public:
@@ -61,9 +74,7 @@ private:
   rigel::base::Color mBackgroundColor;
 
   rigel::opengl::DummyVao mDummyVao;
-  rigel::opengl::Handle<rigel::opengl::tag::Texture> mTextureAtlas;
-  float mTextureAtlasWidth;
-  std::vector<float> mTextureAtlasUvOffsets;
+  TextureAtlas mWorldTextures;
   rigel::opengl::Shader mShader;
 
   glm::vec3 mCameraPosition{0.0f, 1.5f, 0.0f};
