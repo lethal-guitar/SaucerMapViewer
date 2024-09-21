@@ -399,4 +399,13 @@ For the top and bottom faces, the texture itself should be rotated. :warning: In
 
 ### 3D model instance
 
+| Offset | Type | Description |
+--- | --- | ---
+| 0 | u8 | X offset |
+| 1 | u8 | Y offset |
+| 2 | i16 | Vertical offset |
+| 4 | 6 bytes | Unknown |
+| 10 | u32 | Model index |
+| 14 | 2 bytes | Unknown |
+
 TODO
