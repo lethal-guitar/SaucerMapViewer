@@ -171,7 +171,7 @@ If bit 2 in flags is set, a blend mode value greater or equal to `0x80` results 
 
 Entries in the model table provide two `u32` pointers into the packed data block, one at the start and one at offset 12. The remaining 28 bytes are unknown at the moment and need further investigation.
 
-The 1st pointer locates a fixed-size block of 80 bytes, which contains up to 7 additional packed data pointers. The 2nd pointer seems to locate a fixed-size block of 60 bytes, which has unknown content.
+The 1st pointer locates a fixed-size block of 80 bytes, which contains up to 7 additional packed data pointers (first subheader). The 2nd pointer locates a fixed-size block of 60 bytes (second subheader).
 
 #### First subheader
 
@@ -190,6 +190,15 @@ All fields are `u32`, unless noted otherwise.
 | 68 | Unknown data pointer 2 |
 | 72 | Unknown data pointer 3 (optional, often 0) |
 | 76 | Unknown, possibly 2 i16 offsets |
+
+#### Second subheader
+
+| Offset | Type | Description
+--- |  --- | ---
+|  0 | 20 bytes | Unknown |
+| 20 | i16 | Base vertical offset |
+| 22 | 38 bytes ? | Unknown |
+
 
 #### Vertices
 
@@ -404,8 +413,10 @@ For the top and bottom faces, the texture itself should be rotated. :warning: In
 | 0 | u8 | X offset |
 | 1 | u8 | Y offset |
 | 2 | i16 | Vertical offset |
-| 4 | 6 bytes | Unknown |
+| 4 | 3 bytes | Unknown |
+| 7 | u8 | Rotation (counter-clockwise) |
+| 8 | 3 bytes | Unknown |
 | 10 | u32 | Model index |
-| 14 | 2 bytes | Unknown |
+| 14 | u16 | Scale |
 
 TODO
