@@ -467,6 +467,9 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
         addFace(sides[(1 + sidesRotation) % 4 + 4], 6, 7, 3, 2);
         addFace(sides[(2 + sidesRotation) % 4 + 4], 5, 6, 2, 1);
         addFace(sides[(3 + sidesRotation) % 4 + 4], 4, 5, 1, 0);
+      },
+
+      [&](const ModelInstance& model) {
       });
   }
 

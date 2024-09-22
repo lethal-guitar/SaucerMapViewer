@@ -21,6 +21,7 @@
 #include <array>
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -103,8 +104,21 @@ struct BlockInstance : MapItemCommon
 };
 
 
+struct ModelInstance : MapItemCommon
+{
+  std::string modelName;
+  uint8_t xOffset;
+  uint8_t yOffset;
+  int16_t verticalOffset;
+  uint16_t rotationX;
+  uint16_t rotationY;
+  uint16_t rotationZ;
+  uint16_t scale;
+};
+
+
 using TerrainGrid = std::array<TerrainTile, MAP_SIZE * MAP_SIZE>;
-using MapItem = std::variant<ExtraTerrainTile, BlockInstance>;
+using MapItem = std::variant<ExtraTerrainTile, BlockInstance, ModelInstance>;
 
 
 struct MapData

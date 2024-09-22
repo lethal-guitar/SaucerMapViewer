@@ -156,17 +156,26 @@ std::optional<MapData>
   }
 
 
-  // TODO: Implement models
-  for (;;)
+  std::vector<std::string> modelNameTable;
+  modelNameTable.assign(wad.mModels.size(), "");
+
   {
-    const auto index = read<int32_t>(f);
-
-    if (index == -1)
+    for (;;)
     {
-      break;
-    }
+      const auto index = read<int32_t>(f);
 
-    skipBytes(f, 16);
+      if (index == -1 || f.eof())
+      {
+        break;
+      }
+
+      const auto name = readString(f, 16);
+
+      if (index < modelNameTable.size())
+      {
+        modelNameTable[index] = name;
+      }
+    }
   }
 
 
@@ -257,7 +266,25 @@ std::optional<MapData>
         break;
 
       case 0x1000:
-        skipBytes(f, 16);
+        {
+          ModelInstance model;
+          model.x = x;
+          model.y = y;
+
+          model.xOffset = read<uint8_t>(f);
+          model.yOffset = read<uint8_t>(f);
+          model.verticalOffset = read<int16_t>(f);
+          model.rotationX = read<uint16_t>(f);
+          model.rotationY = read<uint16_t>(f);
+          model.rotationZ = read<uint16_t>(f);
+          model.modelName = modelNameTable.at(read<uint32_t>(f));
+          model.scale = read<uint16_t>(f);
+
+          if (wad.mModels.count(model.modelName))
+          {
+            map.mItems.push_back(model);
+          }
+        }
         break;
 
       default:
