@@ -52,6 +52,16 @@ struct TextureAtlas
 };
 
 
+struct MaskedMesh
+{
+  Mesh mMesh;
+  uint16_t mMaskedFacesStart = 0;
+  uint16_t mMaskedFacesCount = 0;
+
+  void draw(rigel::opengl::Shader& shader);
+};
+
+
 class MapRenderer
 {
 public:
@@ -63,27 +73,31 @@ public:
 
   bool mShowTerrain = true;
   bool mShowGeometry = true;
+  bool mShowModels = true;
   bool mCullFaces = true;
 
   const glm::vec3& cameraPosition() const { return mCameraPosition; }
 
 private:
-  void buildMeshes(const MapData& map, const WadData& wad);
+  void buildMeshes(
+    const MapData& map,
+    const WadData& wad,
+    const std::unordered_map<std::string, ModelData>& models);
   void moveCamera(double dt);
 
   rigel::base::Color mBackgroundColor;
 
   rigel::opengl::DummyVao mDummyVao;
   TextureAtlas mWorldTextures;
+  TextureAtlas mModelTextures;
   rigel::opengl::Shader mShader;
 
   glm::vec3 mCameraPosition{0.0f, 1.5f, 0.0f};
   glm::vec3 mCameraDirection{0.0f, 0.0f, -1.0f};
 
   Mesh mTerrainMesh;
-  Mesh mBlocksMesh;
-  uint16_t mMaskedBlockFacesStart = 0;
-  uint16_t mMaskedBlockFacesCount = 0;
+  MaskedMesh mBlocksMesh;
+  MaskedMesh mModelsMesh;
 };
 
 } // namespace saucer

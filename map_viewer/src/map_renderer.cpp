@@ -16,12 +16,15 @@
 
 #include "map_renderer.hpp"
 
+#include <rigel/base/image_loading.hpp>
 #include <rigel/base/match.hpp>
 #include <rigel/opengl/utils.hpp>
 
 RIGEL_DISABLE_WARNINGS
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/mat4x4.hpp>
+#include <imgui.h>
+#include <loguru.hpp>
 RIGEL_RESTORE_WARNINGS
 
 #include <algorithm>
@@ -92,13 +95,58 @@ const opengl::ShaderSpec SHADER_SPEC{
   FRAGMENT_SOURCE};
 
 
-std::vector<int> determineTexturePagesUsed(const MapData& map)
+std::vector<int> determineWorldTexturePagesUsed(const MapData& map)
 {
   std::vector<int> pages;
 
   for (const auto& textureDef : map.mTextureDefs)
   {
     pages.push_back(textureDef.bitmapIndex);
+  }
+
+  std::sort(pages.begin(), pages.end());
+  const auto iNewEnd = std::unique(pages.begin(), pages.end());
+
+  pages.erase(iNewEnd, pages.end());
+
+  return pages;
+}
+
+
+std::unordered_map<std::string, ModelData>
+  loadUsedModels(const MapData& map, const WadData& wad)
+{
+  std::unordered_map<std::string, ModelData> models;
+
+  for (const auto& item : map.mItems)
+  {
+    if (const auto pModelInstance = std::get_if<ModelInstance>(&item))
+    {
+      const auto& name = pModelInstance->modelName;
+
+      if (models.count(name) == 0)
+      {
+        models.insert({name, wad.loadModel(name)});
+      }
+    }
+  }
+
+  return models;
+}
+
+
+std::vector<int> determineModelTexturePagesUsed(
+  const std::unordered_map<std::string, ModelData>& models,
+  const WadData& wad)
+{
+  std::vector<int> pages;
+
+  for (const auto& [_, model] : models)
+  {
+    for (const auto& face : model.faces)
+    {
+      pages.push_back(wad.mTextureDefs.at(face.mTexture).bitmapIndex);
+    }
   }
 
   std::sort(pages.begin(), pages.end());
@@ -118,6 +166,19 @@ struct TexCoords
 
 struct Vertex
 {
+  Vertex(float x_, float y_, float z_, TexCoords uv_)
+    : x(x_)
+    , y(y_)
+    , z(z_)
+    , uv(uv_)
+  {
+  }
+
+  explicit Vertex(glm::vec3 vec, TexCoords uv_)
+    : Vertex(vec.x, vec.y, vec.z, uv_)
+  {
+  }
+
   float x, y, z;
   TexCoords uv;
 };
@@ -157,6 +218,11 @@ Vertex makeVertex(const MapVertex& v, const TexCoords& uv)
 std::vector<float> buildAtlasUvOffsetTable(rigel::base::ArrayView<int> pages)
 {
   std::vector<float> table;
+  if (pages.empty())
+  {
+    return table;
+  }
+
   table.assign(pages.back() + 1, 0.0f);
 
   {
@@ -172,6 +238,57 @@ std::vector<float> buildAtlasUvOffsetTable(rigel::base::ArrayView<int> pages)
 }
 
 
+float convertRotation(const uint16_t rotation)
+{
+  return float(rotation) / (256.0f * 256.0f) * 360.0f;
+}
+
+
+glm::mat4 convertMatrix(const std::array<int16_t, 3 * 4>& matrix)
+{
+  auto convert = [](const int16_t value) {
+    return float(value) / 512.0f;
+  };
+
+  return glm::mat4(
+    convert(matrix[0]),
+    convert(matrix[1]),
+    convert(matrix[2]),
+    0.0f,
+    convert(matrix[3]),
+    convert(matrix[4]),
+    convert(matrix[5]),
+    0.0f,
+    convert(matrix[6]),
+    convert(matrix[7]),
+    convert(matrix[8]),
+    0.0f,
+    float(matrix[9]) / -256.0f,
+    float(matrix[10]) / -256.0f,
+    float(matrix[11]) / 256.0f,
+    1.0f);
+}
+
+
+MaskedMesh createMaskedMesh(
+  MeshBufferData<Vertex>&& solidFaces,
+  MeshBufferData<Vertex>&& maskedFaces,
+  const rigel::opengl::Shader& shader)
+{
+  MaskedMesh mesh;
+
+  if (maskedFaces.hasData())
+  {
+    mesh.mMaskedFacesStart = uint16_t(solidFaces.mIndexBuffer.size());
+    mesh.mMaskedFacesCount = uint16_t(maskedFaces.mIndexBuffer.size());
+    solidFaces.append(maskedFaces);
+  }
+
+  mesh.mMesh = solidFaces.createMesh(shader.attributeSpecs());
+
+  return mesh;
+}
+
 } // namespace
 
 
@@ -184,6 +301,22 @@ TextureAtlas::TextureAtlas(
 {
 }
 
+
+void MaskedMesh::draw(rigel::opengl::Shader& shader)
+{
+  if (mMaskedFacesStart)
+  {
+    mMesh.drawSubRange(0, mMaskedFacesStart);
+
+    shader.setUniform("alphaTesting", true);
+    mMesh.drawSubRange(mMaskedFacesStart, mMaskedFacesCount);
+    shader.setUniform("alphaTesting", false);
+  }
+  else
+  {
+    mMesh.draw();
+  }
+}
 
 
 MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
@@ -203,11 +336,22 @@ MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
     mShader.setUniform("alphaTesting", false);
   }
 
-  const auto pagesUsed = determineTexturePagesUsed(map);
-  const auto textureAtlasImage = wad.buildTextureAtlas(pagesUsed);
-  mWorldTextures = TextureAtlas(textureAtlasImage, pagesUsed);
+  {
+    const auto pagesUsed = determineWorldTexturePagesUsed(map);
+    const auto textureAtlasImage = wad.buildTextureAtlas(pagesUsed);
+    mWorldTextures = TextureAtlas(textureAtlasImage, pagesUsed);
+  }
 
-  buildMeshes(map, wad);
+  const auto models = loadUsedModels(map, wad);
+
+  {
+    const auto pagesUsed = determineModelTexturePagesUsed(models, wad);
+    const auto textureAtlasImage = wad.buildTextureAtlas(pagesUsed);
+
+    mModelTextures = TextureAtlas(textureAtlasImage, pagesUsed);
+  }
+
+  buildMeshes(map, wad, models);
 }
 
 
@@ -222,7 +366,6 @@ void MapRenderer::updateAndRender(
   const rigel::base::Size& windowSize)
 {
   moveCamera(dt);
-
 
   const auto view = glm::lookAt(
     mCameraPosition,
@@ -252,6 +395,8 @@ void MapRenderer::updateAndRender(
   glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+  glBindTexture(GL_TEXTURE_2D, mWorldTextures.mTexture);
+
   if (mShowTerrain)
   {
     mTerrainMesh.draw();
@@ -259,33 +404,35 @@ void MapRenderer::updateAndRender(
 
   if (mShowGeometry)
   {
-    if (mMaskedBlockFacesCount)
-    {
-      mBlocksMesh.drawSubRange(0, mMaskedBlockFacesStart);
+    mBlocksMesh.draw(mShader);
+  }
 
-      mShader.setUniform("alphaTesting", true);
-      mBlocksMesh.drawSubRange(mMaskedBlockFacesStart, mMaskedBlockFacesCount);
-      mShader.setUniform("alphaTesting", false);
-    }
-    else
-    {
-      mBlocksMesh.draw();
-    }
+  if (mShowModels)
+  {
+    glBindTexture(GL_TEXTURE_2D, mModelTextures.mTexture);
+
+    mModelsMesh.draw(mShader);
   }
 }
 
 
-void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
+void MapRenderer::buildMeshes(
+  const MapData& map,
+  const WadData& wad,
+  const std::unordered_map<std::string, ModelData>& models)
 {
-  auto getTexCoords = [&](uint16_t textureDefIndex) {
+  auto getTexCoords = [](
+                        uint16_t textureDefIndex,
+                        const TextureAtlas& atlas,
+                        const rigel::base::ArrayView<TextureDef> textureDefs) {
     std::array<TexCoords, 4> texCoords;
 
-    const auto& texDef = map.mTextureDefs[textureDefIndex];
+    const auto& texDef = textureDefs[textureDefIndex];
 
     // The game's texture coordinates are relative to their respective page,
     // but we combine all pages into a single texture atlas. Adjust U
     // coordinates accordingly.
-    const auto uOffset = mWorldTextures.mUvOffsets[texDef.bitmapIndex];
+    const auto uOffset = atlas.mUvOffsets[texDef.bitmapIndex];
 
     std::transform(
       texDef.uvs.begin(),
@@ -293,11 +440,21 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
       texCoords.begin(),
       [&](const UvPair& uv) {
         return TexCoords{
-          (float(uv.u) + 0.5f) / mWorldTextures.mWidth + uOffset,
+          (float(uv.u) + 0.5f) / atlas.mWidth + uOffset,
           (float(uv.v) + 0.5f) / float(TEXTURE_PAGE_SIZE)};
       });
 
     return texCoords;
+  };
+
+
+  auto getWorldTexCoords = [&](uint16_t index) {
+    return getTexCoords(index, mWorldTextures, map.mTextureDefs);
+  };
+
+
+  auto getModelTexCoords = [&](uint16_t index) {
+    return getTexCoords(index, mModelTextures, wad.mTextureDefs);
   };
 
 
@@ -316,7 +473,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
         continue;
       }
 
-      auto uvs = getTexCoords(texture);
+      auto uvs = getWorldTexCoords(texture);
 
       const auto vertOffset0 = tile.verticalOffset;
       const auto vertOffset1 =
@@ -343,7 +500,10 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
   MeshBufferData<Vertex> blocksBuffer;
   MeshBufferData<Vertex> blocksBufferMasked;
 
-  for (const auto item : map.mItems)
+  MeshBufferData<Vertex> modelsBuffer;
+  MeshBufferData<Vertex> modelsBufferMasked;
+
+  for (const auto& item : map.mItems)
   {
     base::match(
       item,
@@ -356,7 +516,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
           return;
         }
 
-        auto uvs = getTexCoords(texture);
+        auto uvs = getWorldTexCoords(texture);
 
         const auto rotation = 4 - tile.flags.rotation();
 
@@ -416,7 +576,7 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
             return;
           }
 
-          const auto uvs = getTexCoords(texture);
+          const auto uvs = getWorldTexCoords(texture);
 
           // Masked faces need to be kept separate, as we have to render them
           // with alpha-testing enabled.
@@ -470,21 +630,83 @@ void MapRenderer::buildMeshes(const MapData& map, const WadData& wad)
       },
 
       [&](const ModelInstance& model) {
+        const auto& modelData = models.at(model.modelName);
+
+        const auto baseX = float(model.x) - 32.0f;
+        const auto baseZ = float(model.y) - 32.0f;
+
+        const auto scale = float(model.scale) / 256.0f;
+
+        auto transform = glm::mat4(1.0f);
+        transform = glm::translate(
+          transform,
+          glm::vec3(
+            baseX + model.xOffset / 256.0f,
+            model.verticalOffset / -256.0f,
+            baseZ + model.yOffset / 256.0f));
+        transform = glm::scale(transform, glm::vec3(scale));
+        transform = glm::rotate(
+          transform,
+          glm::radians(convertRotation(model.rotationY)),
+          glm::vec3(0.0f, -1.0f, 0.0f));
+        transform = glm::rotate(
+          transform,
+          glm::radians(convertRotation(model.rotationZ)),
+          glm::vec3(0.0f, 0.0f, 1.0f));
+        transform = glm::rotate(
+          transform,
+          glm::radians(convertRotation(model.rotationX)),
+          glm::vec3(-1.0f, 0.0f, 0.0f));
+        transform *= convertMatrix(modelData.transformationMatrix);
+
+
+        auto makeModelVertex = [&](const uint16_t index, const TexCoords& uv) {
+          const auto& coords = modelData.vertices[index];
+
+          const auto x = coords.x / -256.0f;
+          const auto y = coords.y / -256.0f;
+          const auto z = coords.z / 256.0f;
+
+          const auto transformed = transform * glm::vec4(x, y, z, 1.0);
+
+          return Vertex{glm::vec3(transformed), uv};
+        };
+
+
+        for (const auto& face : modelData.faces)
+        {
+          const auto uvs = getModelTexCoords(face.mTexture);
+          const auto indices = face.indices();
+
+          auto& buffer = wad.mTextureDefs[face.mTexture].isMasked
+            ? modelsBufferMasked
+            : modelsBuffer;
+
+          if (indices.size() == 3)
+          {
+            buffer.addTriangle(
+              makeModelVertex(indices[0], uvs[0]),
+              makeModelVertex(indices[1], uvs[1]),
+              makeModelVertex(indices[2], uvs[2]));
+          }
+          else
+          {
+            buffer.addQuad(
+              makeModelVertex(indices[0], uvs[0]),
+              makeModelVertex(indices[1], uvs[1]),
+              makeModelVertex(indices[2], uvs[2]),
+              makeModelVertex(indices[3], uvs[3]));
+          }
+        }
       });
   }
 
 
   mTerrainMesh = terrainBuffer.createMesh(mShader.attributeSpecs());
-
-
-  if (blocksBufferMasked.hasData())
-  {
-    mMaskedBlockFacesStart = uint16_t(blocksBuffer.mIndexBuffer.size());
-    mMaskedBlockFacesCount = uint16_t(blocksBufferMasked.mIndexBuffer.size());
-    blocksBuffer.append(blocksBufferMasked);
-  }
-
-  mBlocksMesh = blocksBuffer.createMesh(mShader.attributeSpecs());
+  mBlocksMesh = createMaskedMesh(
+    std::move(blocksBuffer), std::move(blocksBufferMasked), mShader);
+  mModelsMesh = createMaskedMesh(
+    std::move(modelsBuffer), std::move(modelsBufferMasked), mShader);
 }
 
 

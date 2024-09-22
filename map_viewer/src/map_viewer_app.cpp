@@ -186,6 +186,8 @@ void MapViewerApp::updateAndRender(
     ImGui::SameLine();
     ImGui::Checkbox("Geometry", &mpMapRenderer->mShowGeometry);
     ImGui::SameLine();
+    ImGui::Checkbox("3D Models", &mpMapRenderer->mShowModels);
+    ImGui::SameLine();
     ImGui::Checkbox("Backface culling", &mpMapRenderer->mCullFaces);
 
     ImGui::SameLine();
