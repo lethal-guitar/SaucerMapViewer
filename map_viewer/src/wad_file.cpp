@@ -17,6 +17,7 @@
 #include "wad_file.hpp"
 
 #include <rigel/base/binary_io.hpp>
+#include <rigel/base/byte_buffer.hpp>
 
 #include <fstream>
 #include <numeric>
@@ -210,8 +211,27 @@ std::optional<WadData> loadWadFile(const std::filesystem::path& path)
 
   skipRecords(28);
 
-  // Model info table
-  skipRecords(16 + 36);
+  {
+    const auto numModels = read<uint32_t>(f);
+
+    std::vector<std::string> modelNames;
+    modelNames.reserve(numModels);
+
+    for (auto i = 0u; i < numModels; ++i)
+    {
+      modelNames.push_back(readString(f, 16));
+    }
+
+    for (auto i = 0u; i < numModels; ++i)
+    {
+      const auto offsetData = read<uint32_t>(f);
+      skipBytes(f, 8);
+      const auto offsetParams = read<uint32_t>(f);
+      skipBytes(f, 20);
+
+      wad.mModels[modelNames[i]] = ModelInfo{offsetData, offsetParams};
+    }
+  }
 
   // Sound info table
   skipRecords(16 + 116);
@@ -234,6 +254,70 @@ std::optional<WadData> loadWadFile(const std::filesystem::path& path)
   readArray(f, wad.mPackedData.data(), packedDataSize);
 
   return wad;
+}
+
+
+ModelData WadData::loadModel(const std::string& name) const
+{
+  ModelData model;
+
+  const auto& entry = mModels.at(name);
+
+  {
+    const auto iData = mPackedData.begin() + entry.offsetData;
+
+    auto headerReader = rigel::base::LeStreamReader(iData, iData + 80);
+    headerReader.skipBytes(40);
+
+    const auto numVertices = headerReader.readU32();
+    const auto vertexListStart = headerReader.readU32();
+    const auto numFaces = headerReader.readU32();
+    const auto faceListStart = headerReader.readU32();
+
+    model.vertices = rigel::base::ArrayView<ModelVertex>(
+      reinterpret_cast<const ModelVertex*>(
+        mPackedData.data() + vertexListStart),
+      numVertices);
+
+    model.faces.reserve(numFaces);
+
+    const auto iFacesData = mPackedData.begin() + faceListStart;
+    auto facesReader =
+      rigel::base::LeStreamReader(iFacesData, iFacesData + numFaces * 32);
+
+    for (auto i = 0u; i < numFaces; ++i)
+    {
+      ModelFace face;
+      face.mTexture = facesReader.readU32();
+
+      for (auto& index : face.mIndices)
+      {
+        index = facesReader.readU16();
+      }
+
+      const auto type = facesReader.readU16();
+
+      face.mType =
+        type == 0x8000 ? ModelFace::Type::Quad : ModelFace::Type::Triangle;
+
+      facesReader.skipBytes(18);
+
+      model.faces.push_back(face);
+    }
+  }
+
+  {
+    const auto iData = mPackedData.begin() + entry.offsetParams;
+
+    auto reader = rigel::base::LeStreamReader(iData, iData + 60);
+
+    for (auto& entry : model.transformationMatrix)
+    {
+      entry = reader.readS16();
+    }
+  }
+
+  return model;
 }
 
 } // namespace saucer

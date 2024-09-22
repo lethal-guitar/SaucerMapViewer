@@ -40,6 +40,49 @@ struct BitmapInfo
 };
 
 
+struct ModelInfo
+{
+  uint32_t offsetData;
+  uint32_t offsetParams;
+};
+
+
+struct ModelVertex
+{
+  int16_t x;
+  int16_t y;
+  int16_t z;
+};
+
+
+struct ModelFace
+{
+  enum class Type
+  {
+    Quad,
+    Triangle
+  };
+
+  uint32_t mTexture;
+  Type mType;
+  std::array<uint16_t, 4> mIndices;
+
+  rigel::base::ArrayView<uint16_t> indices() const
+  {
+    return rigel::base::ArrayView<uint16_t>(
+      mIndices.data(), mType == Type::Quad ? 4u : 3u);
+  }
+};
+
+
+struct ModelData
+{
+  rigel::base::ArrayView<ModelVertex> vertices;
+  std::vector<ModelFace> faces;
+  std::array<int16_t, 3 * 4> transformationMatrix;
+};
+
+
 using Palette = std::array<rigel::base::Color, 256>;
 
 
@@ -52,14 +95,13 @@ struct WadData
   std::vector<BitmapInfo> mBitmaps;
   std::vector<TextureDef> mTextureDefs;
   std::unordered_map<std::string, uint32_t> mTexturePages;
+  std::unordered_map<std::string, ModelInfo> mModels;
   std::vector<uint8_t> mPackedData;
-
-  // TODO: Implement model loading
-  // std::unordered_map<std::string, ModelInfo> mModels;
 
   std::unique_ptr<Palette> loadPalette() const;
   rigel::base::Color lookupColorIndex(uint8_t index) const;
   rigel::base::Image buildTextureAtlas(rigel::base::ArrayView<int> pages) const;
+  ModelData loadModel(const std::string& name) const;
 };
 
 
