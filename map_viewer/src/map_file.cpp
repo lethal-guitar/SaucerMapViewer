@@ -82,15 +82,13 @@ std::optional<MapData>
 
       const auto name = readString(f, 14);
 
-      if (i < texturePageRemapTable.size())
+      if (index < texturePageRemapTable.size())
       {
         if (const auto iWadIndex = wad.mTexturePages.find(name);
             iWadIndex != wad.mTexturePages.end())
         {
-          texturePageRemapTable[i] = iWadIndex->second;
+          texturePageRemapTable[index] = iWadIndex->second;
         }
-
-        ++i;
       }
     }
   }
