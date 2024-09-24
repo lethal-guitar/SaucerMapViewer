@@ -65,32 +65,21 @@ std::optional<MapData>
   skipBytes(f, sizeof(uint32_t) + 2 * sizeof(uint16_t));
 
 
-  std::vector<int> texturePageRemapTable;
-  texturePageRemapTable.assign(wad.mTexturePages.size(), -1);
-
+  // Skip imported texture page name list. The game has some code to
+  // cross-reference the name list with the WAD file, remap indices in case the
+  // order is different, and drop entries that don't exist in the WAD file.
+  // Neither of these situations ever occur in any of the map files in the
+  // shipping game, so we don't replicate this logic here.
+  for (;;)
   {
-    auto i = 0u;
+    const auto index = read<int32_t>(f);
 
-    for (;;)
+    if (index == -1)
     {
-      const auto index = read<int32_t>(f);
-
-      if (index == -1 || f.eof())
-      {
-        break;
-      }
-
-      const auto name = readString(f, 14);
-
-      if (index < texturePageRemapTable.size())
-      {
-        if (const auto iWadIndex = wad.mTexturePages.find(name);
-            iWadIndex != wad.mTexturePages.end())
-        {
-          texturePageRemapTable[index] = iWadIndex->second;
-        }
-      }
+      break;
     }
+
+    skipBytes(f, 14);
   }
 
 
@@ -119,20 +108,7 @@ std::optional<MapData>
 
   for (auto i = 0u; i < numTextureDefs; ++i)
   {
-    auto def = readTextureDef(f);
-
-    if (def.bitmapIndex >= texturePageRemapTable.size())
-    {
-      continue;
-    }
-
-    const auto newIndex = texturePageRemapTable[def.bitmapIndex];
-
-    if (newIndex != -1)
-    {
-      def.bitmapIndex = uint16_t(newIndex);
-      map.mTextureDefs.push_back(def);
-    }
+    map.mTextureDefs.push_back(readTextureDef(f));
   }
 
 
