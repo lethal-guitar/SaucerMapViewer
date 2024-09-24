@@ -73,6 +73,7 @@ class ModelFace:
 class ModelData:
     vertices: tuple
     faces: tuple
+    matrix: tuple
 
 
 @dataclass
@@ -192,7 +193,10 @@ class WadData:
             for offset in range(0, num_faces * 32, 32)
         )
 
-        return ModelData(vertices=vertices, faces=faces)
+        matrix_data = self.read_packed_data(model_header.offset2, 24)
+        matrix = struct.unpack("<12h", matrix_data)
+
+        return ModelData(vertices=vertices, faces=faces, matrix=matrix)
 
 
 def read_u32(f):
@@ -445,7 +449,15 @@ def build_texture_atlas(wad_data, bitmaps):
     return atlas
 
 
-def build_gltf(texture_atlas_image, solid_mesh, masked_meshes):
+def encode_matrix(matrix):
+    return \
+        [v / 512.0 for v in matrix[0:3]] + [0.0] + \
+        [v / 512.0 for v in matrix[3:6]] + [0.0] + \
+        [v / 512.0 for v in matrix[6:9]] + [0.0] + \
+        [float(v) for v in matrix[9:12]] + [1.0]
+
+
+def build_gltf(texture_atlas_image, solid_mesh, masked_meshes, matrix):
     all_meshes = [(solid_mesh, False)] + \
         [(mesh, True) for mesh in masked_meshes]
 
@@ -485,6 +497,7 @@ def build_gltf(texture_atlas_image, solid_mesh, masked_meshes):
         "nodes": [
             {
                 "mesh": 0,
+                "matrix": encode_matrix(matrix),
             },
         ],
         "meshes": [
@@ -668,7 +681,7 @@ def export_gltf(wad_data, model_data, file_name):
     masked_meshes = [build_mesh((face,)) for face in masked_faces]
 
     atlas_image = build_texture_atlas(wad_data, bitmaps_list)
-    gltf = build_gltf(atlas_image, solid_mesh, masked_meshes)
+    gltf = build_gltf(atlas_image, solid_mesh, masked_meshes, model_data.matrix)
 
     with open(file_name, "w") as f:
         f.write(json.dumps(gltf))
