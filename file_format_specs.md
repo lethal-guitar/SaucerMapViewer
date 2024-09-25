@@ -426,6 +426,6 @@ To correctly position the model in the world, the following transformations are 
 
 * Apply model's transformation matrix (see [Model parameters record](#model-parameters-record))
 * Apply scale
-* Apply rotation, in order X, Z, Y
+* Apply rotation, in order X, Z (!), Y
 * Translate by offsets specified in the model instance
 * Translate to grid cell location
