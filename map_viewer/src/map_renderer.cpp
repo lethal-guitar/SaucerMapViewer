@@ -80,10 +80,37 @@ void main() {
 )shd";
 
 
+const char* BILLBOARD_VERTEX_SOURCE = R"shd(
+ATTRIBUTE HIGHP vec2 position;
+ATTRIBUTE HIGHP vec2 worldPosition;
+ATTRIBUTE HIGHP vec2 texCoord;
+
+OUT HIGHP vec2 texCoordFrag;
+
+uniform mat4 transform;
+uniform mat3 rotation;
+
+
+void main() {
+  vec3 pos = rotation * vec3(position, 0.0);
+  pos += vec3(worldPosition.x, 0.0, worldPosition.y);
+
+  gl_Position = transform * vec4(pos, 1.0);
+  texCoordFrag = texCoord;
+}
+)shd";
+
+
 constexpr auto TEX_UNIT_NAMES = std::array{"textureData"};
 
 constexpr auto ATTRIBUTE_SPECS = std::array<opengl::AttributeSpec, 2>{{
   {"position", opengl::AttributeSpec::Size::vec3},
+  {"texCoord", opengl::AttributeSpec::Size::vec2},
+}};
+
+constexpr auto BILLBOARD_ATTRIBUTE_SPECS = std::array<opengl::AttributeSpec, 3>{{
+  {"position", opengl::AttributeSpec::Size::vec2},
+  {"basePosition", opengl::AttributeSpec::Size::vec2},
   {"texCoord", opengl::AttributeSpec::Size::vec2},
 }};
 
@@ -92,6 +119,12 @@ const opengl::ShaderSpec SHADER_SPEC{
   ATTRIBUTE_SPECS,
   TEX_UNIT_NAMES,
   VERTEX_SOURCE,
+  FRAGMENT_SOURCE};
+
+const opengl::ShaderSpec BILLBOARD_SHADER_SPEC{
+  BILLBOARD_ATTRIBUTE_SPECS,
+  TEX_UNIT_NAMES,
+  BILLBOARD_VERTEX_SOURCE,
   FRAGMENT_SOURCE};
 
 
@@ -180,6 +213,14 @@ struct Vertex
   }
 
   float x, y, z;
+  TexCoords uv;
+};
+
+
+struct BillboardVertex
+{
+  float x, y;
+  float worldX, worldZ;
   TexCoords uv;
 };
 
@@ -322,6 +363,7 @@ void MaskedMesh::draw(rigel::opengl::Shader& shader)
 MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
   : mBackgroundColor(wad.lookupColorIndex(wad.mBackgroundColor))
   , mShader(SHADER_SPEC)
+  , mBillboardShader(BILLBOARD_SHADER_SPEC)
 {
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_CULL_FACE);
@@ -329,11 +371,18 @@ MapRenderer::MapRenderer(const MapData& map, const WadData& wad)
 
   glEnableVertexAttribArray(0);
   glEnableVertexAttribArray(1);
+  glEnableVertexAttribArray(2);
 
   {
     auto guard = opengl::useTemporarily(mShader);
     mShader.setUniform("textureData", 0);
     mShader.setUniform("alphaTesting", false);
+  }
+
+  {
+    auto guard = opengl::useTemporarily(mBillboardShader);
+    mBillboardShader.setUniform("textureData", 0);
+    mBillboardShader.setUniform("alphaTesting", true);
   }
 
   {
@@ -367,19 +416,19 @@ void MapRenderer::updateAndRender(
 {
   moveCamera(dt);
 
+  const auto windowAspectRatio =
+    float(windowSize.width) / float(windowSize.height);
+  const auto cameraUpVector = glm::vec3(0.0f, 1.0f, 0.0f);
   const auto view = glm::lookAt(
     mCameraPosition,
     mCameraPosition + mCameraDirection,
-    glm::vec3(0.0f, 1.0f, 0.0f));
+    cameraUpVector);
+  const auto projection =
+    glm::perspective(glm::radians(90.0f), windowAspectRatio, 0.1f, 100.0f);
 
-  const auto windowAspectRatio =
-    float(windowSize.width) / float(windowSize.height);
-  auto matrix =
-    glm::perspective(glm::radians(90.0f), windowAspectRatio, 0.1f, 100.0f) *
-    view;
 
   mShader.use();
-  mShader.setUniform("transform", matrix);
+  mShader.setUniform("transform", projection * view);
 
   if (mCullFaces)
   {
@@ -405,6 +454,19 @@ void MapRenderer::updateAndRender(
   if (mShowGeometry)
   {
     mBlocksMesh.draw(mShader);
+  }
+
+  if (mShowBillboards)
+  {
+    auto guard = opengl::useTemporarily(mBillboardShader);
+
+    const auto normal = glm::normalize(mCameraDirection) * -1.0f;
+    const auto rightVector = glm::normalize(glm::cross(cameraUpVector, normal));
+
+    mBillboardShader.setUniform("transform", projection * view);
+    mBillboardShader.setUniform("rotation", glm::mat3(rightVector, cameraUpVector, normal));
+
+    mBillboardsMesh.draw();
   }
 
   if (mShowModels)
@@ -502,6 +564,8 @@ void MapRenderer::buildMeshes(
 
   MeshBufferData<Vertex> modelsBuffer;
   MeshBufferData<Vertex> modelsBufferMasked;
+
+  MeshBufferData<BillboardVertex> billboardsBuffer;
 
   for (const auto& item : map.mItems)
   {
@@ -700,7 +764,36 @@ void MapRenderer::buildMeshes(
         }
       },
 
-      [&](const Billboard& billboard) {});
+      [&](const Billboard& billboard) {
+        const auto& texture = map.mTextureDefs[billboard.texture];
+
+        const auto widthPx = std::abs(texture.uvs[2].u - texture.uvs[0].u);
+        const auto heightPx = std::abs(texture.uvs[2].v - texture.uvs[0].v);
+
+        const auto baseX = float(billboard.x) - 32.0f;
+        const auto baseY = float(billboard.verticalOffset) / -256.0f;
+        const auto baseZ = float(billboard.y) - 32.0f + 1.0f;
+
+        const auto scale = float(billboard.scale) / 256.0f;
+        const auto width = widthPx / 64.0f * scale;
+        const auto height = heightPx / 64.0f * scale;
+
+        const auto x = float(texture.originX) / 64.0f * scale;
+        const auto y = baseY - float(texture.originY) / 64.0f * scale;
+
+        const auto worldX = baseX + float(billboard.xOffset) / 255.0f;
+        const auto worldZ = baseZ - float(billboard.yOffset) / 255.0f;
+
+        auto uvs = getWorldTexCoords(billboard.texture);
+
+        // clang-format off
+        billboardsBuffer.addQuad(
+          BillboardVertex{x,         y,          worldX, worldZ, uvs[0]},
+          BillboardVertex{x + width, y,          worldX, worldZ, uvs[1]},
+          BillboardVertex{x + width, y - height, worldX, worldZ, uvs[2]},
+          BillboardVertex{x,         y - height, worldX, worldZ, uvs[3]});
+        // clang-format on
+      });
   }
 
 
@@ -709,6 +802,7 @@ void MapRenderer::buildMeshes(
     std::move(blocksBuffer), std::move(blocksBufferMasked), mShader);
   mModelsMesh = createMaskedMesh(
     std::move(modelsBuffer), std::move(modelsBufferMasked), mShader);
+  mBillboardsMesh = billboardsBuffer.createMesh(mBillboardShader.attributeSpecs());
 }
 
 

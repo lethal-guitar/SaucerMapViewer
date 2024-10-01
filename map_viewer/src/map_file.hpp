@@ -120,8 +120,8 @@ struct ModelInstance : MapItemCommon
 struct Billboard : MapItemCommon
 {
   uint32_t texture;
-  int8_t xOffset;
-  int8_t yOffset;
+  uint8_t xOffset;
+  uint8_t yOffset;
   int16_t verticalOffset;
   uint16_t scale;
 };

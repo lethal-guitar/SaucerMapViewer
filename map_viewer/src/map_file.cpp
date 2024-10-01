@@ -210,8 +210,8 @@ std::optional<MapData>
 
           billboard.texture = read<uint32_t>(f);
           skipBytes(f, 1);
-          billboard.xOffset = read<int8_t>(f);
-          billboard.yOffset = read<int8_t>(f);
+          billboard.xOffset = read<uint8_t>(f);
+          billboard.yOffset = read<uint8_t>(f);
           skipBytes(f, 1);
           billboard.verticalOffset = read<int16_t>(f);
           billboard.scale = read<uint16_t>(f);
