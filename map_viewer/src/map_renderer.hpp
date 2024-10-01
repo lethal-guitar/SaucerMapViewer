@@ -74,6 +74,7 @@ public:
   bool mShowTerrain = true;
   bool mShowGeometry = true;
   bool mShowModels = true;
+  bool mShowBillboards = true;
   bool mCullFaces = true;
 
   const glm::vec3& cameraPosition() const { return mCameraPosition; }
@@ -91,6 +92,7 @@ private:
   TextureAtlas mWorldTextures;
   TextureAtlas mModelTextures;
   rigel::opengl::Shader mShader;
+  rigel::opengl::Shader mBillboardShader;
 
   glm::vec3 mCameraPosition{0.0f, 1.5f, 0.0f};
   glm::vec3 mCameraDirection{0.0f, 0.0f, -1.0f};
@@ -98,6 +100,7 @@ private:
   Mesh mTerrainMesh;
   MaskedMesh mBlocksMesh;
   MaskedMesh mModelsMesh;
+  Mesh mBillboardsMesh;
 };
 
 } // namespace saucer
