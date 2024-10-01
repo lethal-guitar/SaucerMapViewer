@@ -698,7 +698,9 @@ void MapRenderer::buildMeshes(
               makeModelVertex(indices[3], uvs[3]));
           }
         }
-      });
+      },
+
+      [&](const Billboard& billboard) {});
   }
 
 

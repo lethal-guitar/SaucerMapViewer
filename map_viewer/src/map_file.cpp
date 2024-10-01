@@ -203,7 +203,21 @@ std::optional<MapData>
         break;
 
       case 0x10:
-        skipBytes(f, 12);
+        {
+          Billboard billboard;
+          billboard.x = x;
+          billboard.y = y;
+
+          billboard.texture = read<uint32_t>(f);
+          skipBytes(f, 1);
+          billboard.xOffset = read<int8_t>(f);
+          billboard.yOffset = read<int8_t>(f);
+          skipBytes(f, 1);
+          billboard.verticalOffset = read<int16_t>(f);
+          billboard.scale = read<uint16_t>(f);
+
+          map.mItems.push_back(billboard);
+        }
         break;
 
       case 0x20:

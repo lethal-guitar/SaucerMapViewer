@@ -117,8 +117,19 @@ struct ModelInstance : MapItemCommon
 };
 
 
+struct Billboard : MapItemCommon
+{
+  uint32_t texture;
+  int8_t xOffset;
+  int8_t yOffset;
+  int16_t verticalOffset;
+  uint16_t scale;
+};
+
+
 using TerrainGrid = std::array<TerrainTile, MAP_SIZE * MAP_SIZE>;
-using MapItem = std::variant<ExtraTerrainTile, BlockInstance, ModelInstance>;
+using MapItem =
+  std::variant<ExtraTerrainTile, BlockInstance, ModelInstance, Billboard>;
 
 
 struct MapData
