@@ -148,7 +148,8 @@ The structure is as follows:
 7 | u8 | Blend mode
 8 | u8 | u3
 9 | u8 | v3
-10 | u16 ? | Unknown
+10 | i8 | X origin
+11 | i8 | Y origin
 12 | u8 | u4
 13 | u8 | v4
 14 | u16 | Flags
@@ -367,7 +368,15 @@ The `flags` field works exactly the same as for regular terrain tiles.
 
 ### Billboard texture
 
-TODO
+| Offset | Type | Description |
+--- | --- | ---
+| 0 | u32 | Texture |
+| 4 | u8 | Unknown |
+| 5 | i8 | X offset |
+| 6 | u8 | Y offset |
+| 7 | u8 | Unknown |
+| 8 | i16 | Vertical offset |
+| 10 | u16 | Scale |
 
 ### Block instance
 
