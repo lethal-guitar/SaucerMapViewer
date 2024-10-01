@@ -372,7 +372,7 @@ The `flags` field works exactly the same as for regular terrain tiles.
 --- | --- | ---
 | 0 | u32 | Texture |
 | 4 | u8 | Unknown |
-| 5 | i8 | X offset |
+| 5 | u8 | X offset |
 | 6 | u8 | Y offset |
 | 7 | u8 | Unknown |
 | 8 | i16 | Vertical offset |
