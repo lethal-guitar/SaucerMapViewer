@@ -53,7 +53,8 @@ TextureDef readTextureDef(std::istream& f)
   skipBytes(f, sizeof(uint8_t) * 2);
   def.uvs[2].u = read<uint8_t>(f);
   def.uvs[2].v = read<uint8_t>(f);
-  skipBytes(f, sizeof(uint16_t));
+  def.originX = read<int8_t>(f);
+  def.originY = read<int8_t>(f);
   def.uvs[3].u = read<uint8_t>(f);
   def.uvs[3].v = read<uint8_t>(f);
 

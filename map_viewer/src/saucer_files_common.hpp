@@ -36,6 +36,8 @@ struct TextureDef
 {
   std::array<UvPair, 4> uvs;
   uint16_t bitmapIndex;
+  int8_t originX;
+  int8_t originY;
   bool isMasked;
 };
 
