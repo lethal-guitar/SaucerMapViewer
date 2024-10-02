@@ -378,6 +378,10 @@ The `flags` field works exactly the same as for regular terrain tiles.
 | 8 | i16 | Vertical offset |
 | 10 | u16 | Scale |
 
+Billboards are rendered as screen-aligned quads. The size of the quad depends on the size of the texture, with 64 pixels filling the width of one map tile. By default, a billboard is positioned such that the top-left corner of the quad is located at the bottom-left corner of the map grid tile. The X and Y origin values from the texture definition can offset this, for example to place the billboard's center at the reference position.
+
+The position is then further modified using the X, Y, and vertical offsets specified in the billboard definition.
+
 ### Block instance
 
 | Offset | Type | Description |
