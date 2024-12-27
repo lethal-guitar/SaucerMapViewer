@@ -14,19 +14,18 @@ All of this is work in progress and not complete yet.
 
 ## Map viewer
 
-The map viewer is written in C++, and uses SDL+OpenGL. It's currently fairly basic: It can open and display all of the game's level files, but it can't display all elements of a map yet, and only offers very basic camera movement.
+The map viewer is written in C++, and uses SDL+OpenGL. It's currently relatively basic: It can open and display all of the game's level files, but it can't display all elements of a map yet, and only offers very basic camera movement.
 
 Use the up/down arrow keys to move forwards/backwards, and left/right to turn. Holding shift + arrow up/down allows moving up and down vertically.
 
 ### What works
 
-* Displaying terrain, level geometry, and 3D models
+* Displaying terrain, level geometry, billboard sprites, and 3D models
 * Basic tank-control style camera movement
 * Toggling display of different elements
 
 ### What's missing
 
-* Displaying billboard sprites
 * Texture animations
 * Handling translucent surfaces
 * Lighting (texture brightness adjustments)
